@@ -48,10 +48,11 @@ Umsetzung: ein UE4SS-Lua-Mod (`CampEverywhere`), Stadt-Erkennung = Claudes Sache
 
 ## Repo & Ablauf
 
-- Git-Repo: `~/Code/ash-and-steel-mods` (lokal). **Quelle des Mods:** `camp-everywhere/mod/CampEverywhere/` (`Scripts/main.lua`, `enabled.txt`). Testscript der Machbarkeitsphase: `spikes/test-script-spike.lua`.
-- Aufs Deck: `camp-everywhere/scripts/deploy-deck.sh`, dann im Spiel Strg+R.
-- **Nie ins Repo oder irgendwohin hochladen:** `research/` (extrahierte Spiel-Assets), `tools/`, `backups/` (Spielstände), `deploy/` (UE4SS-Binaries). Steht in `.gitignore`.
-- Ziel: Veröffentlichung auf Nexus Mods (Pascal lädt mit seinem Account hoch, Claude bereitet Paket und Beschreibung vor).
+- Eigenes Git-Repo: `~/Code/ash-and-steel-mods/camp-everywhere` → GitHub **`Gh05d/ash-and-steel-camp-everywhere`** (öffentlich, Branch `master`, MIT). Der Ordner `ash-and-steel-mods` ist wie `pathfinder-mods` nur ein Arbeitsordner ohne Git, mit `tools/`, `research/` und `backups/` daneben.
+- **Quelle des Mods:** `mod/CampEverywhere/` (`Scripts/main.lua` mit `VERSION`, `enabled.txt`, `README.txt`). Testscript der Machbarkeitsphase: `spikes/test-script-spike.lua`.
+- Aufs Deck: `scripts/deploy-deck.sh` (schaltet `debug` ein; `DEBUG=0` = Release-Fassung), dann im Spiel Strg+R.
+- Release: `VERSION` in `main.lua` erhöhen, committen, `./release.sh` → Zip (`scripts/package.py`, bricht ab, wenn `debug = true`), Tag, GitHub-Release → `.github/workflows/nexus-upload.yml` lädt zu Nexus hoch (Secret `NEXUSMODS_API_KEY`, Variable `NEXUSMODS_FILE_ID`).
+- **Nie ins Repo oder irgendwohin hochladen:** `../research/` (extrahierte Spiel-Assets), `../tools/`, `../backups/` (Spielstände), `deploy/` (UE4SS-Binaries).
 
 ## Nexus-Release
 

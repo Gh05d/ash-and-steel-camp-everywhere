@@ -2,6 +2,8 @@
 
 A UE4SS mod for **Of Ash and Steel** that lets you make camp wherever it makes sense, not only at the fixed camp spots.
 
+Download: [Nexus Mods](https://www.nexusmods.com/ofashandsteel/mods/60) or the [GitHub releases](https://github.com/Gh05d/ash-and-steel-camp-everywhere/releases).
+
 ## How it works
 
 1. Put **Camp Supplies** on any of the four quick slots.

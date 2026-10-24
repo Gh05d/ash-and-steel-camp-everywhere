@@ -7,7 +7,7 @@
 -- Supplies per camp, same camp menu.
 local UEHelpers = require("UEHelpers")
 
-local VERSION = "1.0.1"
+local VERSION = "1.0.0"
 
 -- Settings (distances in cm)
 local CFG = {

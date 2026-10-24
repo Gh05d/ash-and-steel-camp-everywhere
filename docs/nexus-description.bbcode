@@ -1,0 +1,73 @@
+[size=4][b]Camp Everywhere[/b][/size]
+[i]Smart Resting[/i]
+
+Make camp wherever it makes sense, not only at the fixed camp spots. Put your Camp Supplies on a quick slot, look for a good place, and set up camp right there.
+
+[size=3][b]How it works[/b][/size]
+
+[list=1]
+[*]Put [b]Camp Supplies[/b] on any of the four quick slots.
+[*]Press that quick slot. A ghost of the camp fire ring appears in front of you and follows you around: [color=#80ffb3][b]green[/b][/color] where you can camp, [color=#ff7060][b]red[/b][/color] where you can't.
+[*]Press the quick slot again. On green, the camp is set up. On red, the ghost disappears.
+[*]Walk up to your camp and use it like any other camp spot.
+[/list]
+
+[size=3][b]Where you can camp[/b][/size]
+
+The ghost turns red when the spot is:
+[list]
+[*]under a roof (tree tops don't count)
+[*]in a town or village (people or buildings all around)
+[*]too steep or much higher or lower than where you stand
+[*]in water, or you are swimming
+[*]close to enemies (uses the game's own check)
+[/list]
+
+[size=3][b]Good to know[/b][/size]
+
+[list]
+[*]Making camp is the game's own logic: same prompt, same Survival skill requirement, one Camp Supplies per camp, same camp menu.
+[*]Placing the ghost or the camp uses up nothing. Camp Supplies are only used when you actually make camp.
+[*]You have one camp at a time. Setting up a new one removes the old one.
+[*]Camps are not saved. After loading a save, your camp is gone, so your save files stay clean.
+[*]Camp Supplies you buy or pick up later can go on a quick slot automatically.
+[*]Works with keyboard and controller, since it simply uses the game's quick slots.
+[/list]
+
+[size=3][b]Requirements[/b][/size]
+
+[list]
+[*][url=https://github.com/UE4SS-RE/RE-UE4SS/releases/tag/experimental-latest]UE4SS[/url] (experimental build; tested with v3.0.1-1181)
+[/list]
+
+[size=3][b]Installation[/b][/size]
+
+[list=1]
+[*]Install UE4SS: put [code]dwmapi.dll[/code] and the [code]ue4ss[/code] folder into [code]ofAshAndSteel\ofAshAndSteelGame\Binaries\Win64\[/code].
+[*]Extract this mod into your game folder [code]ofAshAndSteel\[/code]. The mod ends up in [code]ofAshAndSteelGame\Binaries\Win64\ue4ss\Mods\CampEverywhere\[/code].
+[*]Start the game. The file [code]enabled.txt[/code] in the mod folder turns the mod on.
+[/list]
+
+[size=3][b]Steam Deck / Linux (Proton)[/b][/size]
+
+Add this to the game's launch options in Steam so UE4SS gets loaded:
+[code]WINEDLLOVERRIDES="dwmapi=n,b" %command%[/code]
+Keep any launch options you already use after [code]%command%[/code].
+
+[size=3][b]Uninstall[/b][/size]
+
+Delete [code]ue4ss\Mods\CampEverywhere\[/code]. The mod doesn't change any game files or save data.
+
+[size=3][b]Compatibility[/b][/size]
+
+[list]
+[*]Tested on Steam build 24202860 (October 2026), Steam Deck with Proton 11.
+[*]Works alongside .pak mods such as Immersive Road Signs and Choose What You Are Selling.
+[/list]
+
+[size=3][b]Known limitations[/b][/size]
+
+[list]
+[*]Towns and villages are recognized by the people and buildings around you. A lonely hut or a group of travellers in the wild can turn the ghost red.
+[*]The ghost shows the fire ring only. That is also what a camp spot looks like before you use it.
+[/list]

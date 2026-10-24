@@ -1,23 +1,29 @@
--- Camp Everywhere für Of Ash and Steel (UE4SS-Lua-Mod).
--- Lagervorräte aufs Schnellmenü legen und die Taste drücken: Vor dir erscheint eine Vorschau des Lagers,
--- grün wenn der Ort passt, rot wenn nicht. Nochmal drücken: bei Grün Lager aufschlagen, bei Rot abbrechen.
--- Es gibt immer nur ein Lager, und es wird nicht gespeichert. Campen selbst (Skill, Lagervorräte, Menü) ist Spiel-Logik.
+-- Camp Everywhere (Smart Resting) for Of Ash and Steel - UE4SS Lua mod
+--
+-- Put Camp Supplies on one of the four quick slots and press its key: a ghost of the camp fire ring
+-- appears in front of you, green where you can camp and red where you can't. Press the key again to make
+-- camp there (green) or to cancel (red). You only ever have one camp; a new one replaces the old one and
+-- camps are not saved. Making camp itself is the game's own logic: same prompt, Survival skill, one Camp
+-- Supplies per camp, same camp menu.
 local UEHelpers = require("UEHelpers")
 
+local VERSION = "1.0.0"
+
+-- Settings (distances in cm)
 local CFG = {
-    distance = 300,     -- Abstand der Vorschau vor dem Spieler (cm)
-    maxSlope = 0.85,    -- Mindest-Z der Boden-Normale (ca. 32° Hangneigung)
-    maxStep = 250,      -- max. Höhenunterschied zwischen Füßen und Lagerplatz (cm)
-    roofHeight = 1500,  -- so weit über dem Lagerplatz muss frei sein (cm)
-    tickMs = 50,        -- Aktualisierung der Vorschau
-    dangerEvery = 10,   -- Gegner- und Siedlungs-Prüfung nur jeden n-ten Tick
-    townNpcs = 3,       -- ab so vielen Menschen-NPCs im Umkreis gilt der Ort als Siedlung
-    townNpcRadius = 2500,       -- cm
-    townBuildingRadius = 1200,  -- cm, Gebäude-Suche in 8 Richtungen
-    townBuildingHits = 2,       -- so viele Richtungen müssen ein Gebäude treffen
-    alpha = 0.22,       -- mittlere Deckkraft der Vorschau
-    pulse = 0.08,       -- Deckkraft schwankt um ±pulse (Geister-Effekt)
-    debug = true,       -- Gründe für Rot ins UE4SS.log schreiben
+    distance = 300,             -- how far in front of you the camp is placed
+    maxSlope = 0.85,            -- minimum Z of the ground normal (about 32 degrees)
+    maxStep = 250,              -- max. height difference between your feet and the camp spot
+    roofHeight = 1500,          -- this much free space above the camp spot (trees don't count)
+    townNpcs = 3,               -- this many people nearby make a place a settlement ...
+    townNpcRadius = 2500,       -- ... within this radius
+    townBuildingRadius = 1200,  -- buildings are searched in 8 directions within this radius ...
+    townBuildingHits = 2,       -- ... and this many directions must hit one
+    tickMs = 50,                -- ghost update interval (ms)
+    slowCheckEvery = 10,        -- enemy and settlement checks only every n-th update
+    alpha = 0.22,               -- average ghost opacity
+    pulse = 0.08,               -- opacity pulses by +/- this much
+    debug = false,              -- write the reason for red into UE4SS.log
 }
 
 local P = {
@@ -27,17 +33,20 @@ local P = {
     checks = "/Game/DialogsAndQuests/Quests/BP/QuestSystem_Checks.Default__QuestSystem_Checks_C",
     useHook = "/Game/RPG_InventorySystem/Blueprints/Components/AC_ConsumableBuffs.AC_ConsumableBuffs_C:Try to Use Consumable",
     addHook = "/Game/RPG_InventorySystem/Blueprints/Components/AC_InventoryCore.AC_InventoryCore_C:Add Item to Inventory Array",
-    resCdo = "/Game/RPG_InventorySystem/Classes/MainItemClasses/SortedOtherItems/bonfire_resource.Default__bonfire_resource_C",
 }
 
-local SUPPLY_ID = "bonfire_resource"
+local SUPPLY_ID = "bonfire_resource" -- Camp Supplies
 local F_ID = "ID_71_E0AE465E423DCDD08FF98D87A5C0B84F"
 local F_SLOT = "EquipmentSlot_82_D8E166834B91EEF8631726AE76BDFFE0"
-local POCKET1 = 9 -- E_ItemSlot: Pocket1..4 = 9..12 (die vier Schnellmenü-Plätze)
+local POCKET1 = 9 -- E_ItemSlot: Pocket1..4 = 9..12, the four quick slots
 
-local GREEN = { R = 0.4, G = 1.0, B = 0.7 }  -- blasses Geistergrün
-local RED = { R = 1.0, G = 0.35, B = 0.3 }   -- blasses Rot
+local GREEN = { R = 0.4, G = 1.0, B = 0.7 } -- pale ghost green
+local RED = { R = 1.0, G = 0.35, B = 0.3 }  -- pale red
 local NO_COLOR = { R = 0, G = 0, B = 0, A = 0 }
+
+local TREE_WORDS = { "foliage", "tree", "pine", "spruce", "oak", "birch", "bush", "leaf", "leaves", "branch", "willow" }
+local WATER_WORDS = { "water", "ocean", "river", "lake", "swim" }
+local BUILDING_WORDS = { "building", "house", "hut", "tavern", "barn", "smithy", "shop", "stall", "market", "archway", "church", "chapel", "mill" }
 
 local state = { placing = false, parts = {}, mids = {}, valid = nil, reason = "", loc = nil, yaw = 0, noDanger = true, town = nil, n = 0 }
 local camp = nil
@@ -50,15 +59,15 @@ local function dbg(fmt, ...)
     if CFG.debug then log(fmt, ...) end
 end
 
--- Asset laden: "/Game/Pfad/Name" -> Objekt "/Game/Pfad/Name.Name"
+-- "/Game/Path/Name" -> object "/Game/Path/Name.Name" (LoadAsset needs the full object path)
 local function loadAsset(pkg)
     local full = pkg .. "." .. pkg:match("([^/]+)$")
     local obj = StaticFindObject(full)
     if obj and obj:IsValid() then return obj end
-    pcall(LoadAsset, full) -- LoadAsset braucht den vollen Objektpfad, nicht den Paketpfad
+    pcall(LoadAsset, full)
     obj = StaticFindObject(full)
     if obj and obj:IsValid() then return obj end
-    log("Asset nicht gefunden: %s", full)
+    log("asset not found: %s", full)
     return nil
 end
 
@@ -107,13 +116,7 @@ local function matchesAny(s, words)
     return false
 end
 
-local TREE_WORDS = { "foliage", "tree", "pine", "spruce", "oak", "birch", "bush", "leaf", "leaves", "branch", "willow" }
-local WATER_WORDS = { "water", "ocean", "river", "lake", "swim" }
-
-local BUILDING_WORDS = { "building", "house", "hut", "tavern", "barn", "smithy", "shop", "stall", "market", "archway", "church", "chapel", "mill" }
-
--- Siedlung: genug Menschen-NPCs in der Nähe (Klassen Base_NPC_*, Tiere zählen nicht) oder Gebäude ringsum.
--- (Die GS_LoadCity-Volumen sind nur Nachlade-Auslöser und decken die Stadt nicht ab.)
+-- Settlement: enough people nearby (Base_NPC_* classes; animals don't count) or buildings all around.
 local function settlement(pawn, p)
     local npcs = 0
     for _, st in ipairs(FindAllOf("AI_Stats_C") or {}) do
@@ -123,7 +126,7 @@ local function settlement(pawn, p)
             if (l.X - p.X) ^ 2 + (l.Y - p.Y) ^ 2 < CFG.townNpcRadius ^ 2 then npcs = npcs + 1 end
         end
     end
-    if npcs >= CFG.townNpcs then return string.format("Siedlung (%d Leute in der Nähe)", npcs) end
+    if npcs >= CFG.townNpcs then return string.format("settlement (%d people nearby)", npcs) end
     local hits = 0
     for i = 0, 7 do
         local r = math.rad(i * 45)
@@ -131,11 +134,11 @@ local function settlement(pawn, p)
             { X = p.X + math.cos(r) * CFG.townBuildingRadius, Y = p.Y + math.sin(r) * CFG.townBuildingRadius, Z = p.Z + 120 }, {})
         if hit and matchesAny(hitNames(hit), BUILDING_WORDS) then hits = hits + 1 end
     end
-    if hits >= CFG.townBuildingHits then return string.format("Siedlung (Gebäude in %d Richtungen)", hits) end
+    if hits >= CFG.townBuildingHits then return string.format("settlement (buildings in %d directions)", hits) end
     return nil
 end
 
--- Dieselbe Gegner-Prüfung, die auch der Lagerplatz beim Campen macht.
+-- The same enemy check the game's camp spots use.
 local dangerWarned = false
 local function noDanger(pawn)
     local checks = StaticFindObject(P.checks)
@@ -143,7 +146,7 @@ local function noDanger(pawn)
     local out = {}
     local ok, r = pcall(function() return checks:QS_CheckDanger(pawn, out) end)
     if not ok then
-        if not dangerWarned then log("QS_CheckDanger nicht aufrufbar: %s", tostring(r)); dangerWarned = true end
+        if not dangerWarned then log("QS_CheckDanger not callable: %s", tostring(r)); dangerWarned = true end
         return true
     end
     local v = out.NoDanger
@@ -152,7 +155,7 @@ local function noDanger(pawn)
     return v
 end
 
--- Ziel vor dem Spieler in Blickrichtung, Boden darunter und Prüfung, ob der Ort passt.
+-- Spot in front of the player (camera direction), the ground below it, and whether it is a valid camp spot.
 local function evaluate(pawn, cam)
     local loc = pawn:K2_GetActorLocation()
     local camYaw = cam:GetCameraRotation().Yaw
@@ -160,30 +163,30 @@ local function evaluate(pawn, cam)
     local tx, ty = loc.X + math.cos(rad) * CFG.distance, loc.Y + math.sin(rad) * CFG.distance
     local ignore = {}
     if camp and camp:IsValid() then table.insert(ignore, camp) end
-    local yaw = camYaw + 180 -- Lager schaut zum Spieler
+    local yaw = camYaw + 180 -- the camp faces the player
     local hit = trace(pawn, { X = tx, Y = ty, Z = loc.Z + 150 }, { X = tx, Y = ty, Z = loc.Z - 1000 }, ignore)
-    if not hit then return nil, yaw, false, "kein Boden" end
+    if not hit then return nil, yaw, false, "no ground" end
     local g = { X = hit.Location.X, Y = hit.Location.Y, Z = hit.Location.Z }
     if hit.ImpactNormal.Z < CFG.maxSlope then
-        return g, yaw, false, string.format("zu steil (Normale %.2f)", hit.ImpactNormal.Z)
+        return g, yaw, false, string.format("too steep (normal %.2f)", hit.ImpactNormal.Z)
     end
-    if math.abs(g.Z - (loc.Z - 90)) > CFG.maxStep then return g, yaw, false, "zu großer Höhenunterschied" end
+    if math.abs(g.Z - (loc.Z - 90)) > CFG.maxStep then return g, yaw, false, "height difference too big" end
     local ground = hitNames(hit)
-    if matchesAny(ground, WATER_WORDS) then return g, yaw, false, "Wasser: " .. ground end
+    if matchesAny(ground, WATER_WORDS) then return g, yaw, false, "water: " .. ground end
     local swimming = false
     pcall(function() swimming = pawn.CharacterMovement:IsSwimming() end)
-    if swimming then return g, yaw, false, "Spieler schwimmt" end
+    if swimming then return g, yaw, false, "player is swimming" end
     local up = trace(pawn, { X = g.X, Y = g.Y, Z = g.Z + 100 }, { X = g.X, Y = g.Y, Z = g.Z + CFG.roofHeight }, ignore)
     if up then
         local name = hitNames(up)
-        if not matchesAny(name, TREE_WORDS) then return g, yaw, false, "Dach: " .. name end
+        if not matchesAny(name, TREE_WORDS) then return g, yaw, false, "roof: " .. name end
     end
     if state.town then return g, yaw, false, state.town end
-    if not state.noDanger then return g, yaw, false, "Gegner in der Nähe" end
-    return g, yaw, true, "passt"
+    if not state.noDanger then return g, yaw, false, "enemies nearby" end
+    return g, yaw, true, "ok"
 end
 
--- Vorschau: nur der Feuerkreis (so sieht auch ein Lagerplatz in der Welt aus), durchsichtig grün/rot.
+-- Ghost: just the fire ring (that's what a camp spot looks like in the world), translucent green/red.
 local function clearGhost()
     for _, a in ipairs(state.parts) do
         if a:IsValid() then a:K2_DestroyActor() end
@@ -196,26 +199,21 @@ local function makeGhost(pawn)
     local world = pawn:GetWorld()
     local smaClass = StaticFindObject("/Script/Engine.StaticMeshActor")
     local mat = loadAsset(P.ghostMat)
-    for _, path in ipairs({ P.stones }) do
-        local mesh = loadAsset(path)
-        if mesh then
-            local a = world:SpawnActor(smaClass, { X = 0, Y = 0, Z = -100000 }, { Pitch = 0, Yaw = 0, Roll = 0 })
-            if a and a:IsValid() then
-                a:SetActorEnableCollision(false)
-                local c = a.StaticMeshComponent
-                c:SetMobility(2) -- Movable
-                c:SetStaticMesh(mesh)
-                c:SetCastShadow(false)
-                if mat then
-                    local mid = c:CreateDynamicMaterialInstance(0, mat, FName("CampGhost"))
-                    for m = 0, c:GetNumMaterials() - 1 do c:SetMaterial(m, mid) end
-                    table.insert(state.mids, mid)
-                end
-                table.insert(state.parts, a)
-            end
-        end
+    local mesh = loadAsset(P.stones)
+    if not mesh then return end
+    local a = world:SpawnActor(smaClass, { X = 0, Y = 0, Z = -100000 }, { Pitch = 0, Yaw = 0, Roll = 0 })
+    if not a or not a:IsValid() then return end
+    a:SetActorEnableCollision(false)
+    local c = a.StaticMeshComponent
+    c:SetMobility(2) -- Movable
+    c:SetStaticMesh(mesh)
+    c:SetCastShadow(false)
+    if mat then
+        local mid = c:CreateDynamicMaterialInstance(0, mat, FName("CampGhost"))
+        for m = 0, c:GetNumMaterials() - 1 do c:SetMaterial(m, mid) end
+        table.insert(state.mids, mid)
     end
-    dbg("Vorschau aus %d Teilen gebaut", #state.parts)
+    table.insert(state.parts, a)
 end
 
 local function moveGhost(g, yaw)
@@ -239,15 +237,15 @@ end
 local function cancel(why)
     clearGhost()
     state.placing = false
-    log("Platzieren abgebrochen (%s)", why or "")
+    dbg("placement cancelled (%s)", why or "")
 end
 
 local function tick()
     if not state.placing then return end
     local pawn, cam = playerAndCamera()
-    if not pawn then return cancel("kein Spieler") end
+    if not pawn then return cancel("no player") end
     state.n = state.n + 1
-    if state.n % CFG.dangerEvery == 1 then
+    if state.n % CFG.slowCheckEvery == 1 then
         state.noDanger = noDanger(pawn)
         local g0 = evaluate(pawn, cam)
         state.town = g0 and settlement(pawn, g0) or nil
@@ -257,7 +255,7 @@ local function tick()
     if g then moveGhost(g, yaw) end
     setColor(ok and g ~= nil)
     if reason ~= state.reason then
-        dbg("Vorschau: %s", reason)
+        dbg("ghost: %s", reason)
         state.reason = reason
     end
 end
@@ -267,19 +265,19 @@ local function startPlacing()
     if not pawn then return end
     makeGhost(pawn)
     state.placing, state.reason, state.n, state.valid, state.loc, state.town = true, "", 0, nil, nil, nil
-    log("Platzieren gestartet")
+    dbg("placement started")
 end
 
 local function confirm()
     if not state.valid or not state.loc then return cancel(state.reason) end
     local pawn = playerAndCamera()
     local cls = campClass()
-    if not pawn or not cls then return cancel("Lagerplatz-Klasse fehlt") end
+    if not pawn or not cls then return cancel("camp spot class missing") end
     if camp and camp:IsValid() then camp:K2_DestroyActor() end
     camp = pawn:GetWorld():SpawnActor(cls, state.loc, { Pitch = 0, Yaw = state.yaw, Roll = 0 })
     clearGhost()
     state.placing = false
-    if camp and camp:IsValid() then log("Lager aufgeschlagen: %s", camp:GetFullName()) else log("Lager konnte nicht gesetzt werden") end
+    if camp and camp:IsValid() then dbg("camp placed: %s", camp:GetFullName()) else log("could not place camp") end
 end
 
 LoopAsync(CFG.tickMs, function()
@@ -287,15 +285,15 @@ LoopAsync(CFG.tickMs, function()
         ExecuteInGameThread(function()
             local ok, err = pcall(tick)
             if not ok then
-                log("Fehler in der Vorschau: %s", tostring(err))
-                cancel("Fehler")
+                log("ghost error: %s", tostring(err))
+                cancel("error")
             end
         end)
     end
     return false
 end)
 
--- Lagervorräte schnellmenü-fähig machen: Das Schnellmenü prüft nur das Stapel-Feld EquipmentSlot (Pocket).
+-- Make Camp Supplies quick-slot capable: the quick slots only check the stack's EquipmentSlot field (Pocket).
 local function patchSupplyStacks()
     local inv = FindFirstOf("AC_PlayerInventory_C")
     if not inv or not inv:IsValid() then return end
@@ -307,20 +305,10 @@ local function patchSupplyStacks()
                 local ok, id = pcall(function() return it[F_ID]:ToString() end)
                 if ok and id == SUPPLY_ID and it[F_SLOT] == 0 then
                     it[F_SLOT] = POCKET1
-                    dbg("Lagervorräte (Reiter P%d) schnellmenü-fähig gemacht", p)
+                    dbg("Camp Supplies (tab P%d) can now go on a quick slot", p)
                 end
             end
         end
-    end
-end
-
--- Aufräumen eines früheren Testversuchs: Typ/Reiter der Lagervorräte auf die Originalwerte.
-local function restoreSupplyDefaults()
-    local cdo = StaticFindObject(P.resCdo)
-    if cdo and cdo:IsValid() and (cdo.Type ~= 0 or cdo["Inventory Panel"] ~= 3) then
-        cdo.Type = 0
-        cdo["Inventory Panel"] = 3
-        log("Lagervorräte-Vorlage auf Originalwerte zurückgesetzt")
     end
 end
 
@@ -336,6 +324,7 @@ local function itemInPocket(slot)
     return found
 end
 
+-- Using a quick slot: the game gives up on Camp Supplies (not a consumable), so nothing is used up here.
 local okUse, errUse = pcall(function()
     RegisterHook(P.useHook, function(self, slot)
         local it = itemInPocket(slot:get())
@@ -347,14 +336,14 @@ local okUse, errUse = pcall(function()
         end)
     end)
 end)
-if not okUse then log("Schnellmenü-Hook fehlt: %s", tostring(errUse)) end
+if not okUse then log("quick slot hook missing: %s", tostring(errUse)) end
 
 local okAdd, errAdd = pcall(function()
     RegisterHook(P.addHook, function()
         ExecuteWithDelay(300, function() ExecuteInGameThread(patchSupplyStacks) end)
     end)
 end)
-if not okAdd then log("Inventar-Hook fehlt: %s", tostring(errAdd)) end
+if not okAdd then log("inventory hook missing: %s", tostring(errAdd)) end
 
 pcall(function()
     RegisterLoadMapPostHook(function()
@@ -365,8 +354,5 @@ pcall(function()
     end)
 end)
 
-ExecuteInGameThread(function()
-    restoreSupplyDefaults()
-    patchSupplyStacks()
-end)
-log("geladen")
+ExecuteInGameThread(patchSupplyStacks)
+log("v%s loaded", VERSION)

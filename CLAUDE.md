@@ -58,7 +58,7 @@ Umsetzung: ein UE4SS-Lua-Mod (`CampEverywhere`), Stadt-Erkennung = Claudes Sache
 - **Nur Englisch** (P): Beschreibung, Readme, Kommentare für die Veröffentlichung.
 - Vorlage ist Pascals Pathfinder-Flow: `~/Code/pathfinder-mods/docs/nexus.md` (API, IDs, Re-Upload) und `…/wrath/wrath-tactics/docs/nexus-release-flow-guide.md` (GitHub-Release → `Nexus-Mods/upload-action`, gepinnt auf `@v1.0.0-beta.8`). Die erste Mod-Seite legt Pascal im Browser an und lädt die erste ZIP manuell hoch.
 - Seitenbilder: Header **1920×720**, Thumbnail **900×506**, in `docs/` (dort gitignored, `git add -f`). Stil der bisherigen Mods: Szenenbild + großer Serifen-Titel in Cremegold mit dunkelbrauner Kontur, darunter kursiver Untertitel (PIL, Font `DejaVuSerifCondensed-Bold.ttf`). Beschreibung als BBCode in `docs/nexus-description.bbcode` (Aufbau wie `fix-subsonic-bullshit`: Titel, Problem, Lösung/How it works, Installation, Compatibility, Source Code).
-- Getestet (P): Stadt = rot ✔.
+- **Siedlungs-Erkennung:** Die `GS_LoadCity`-Volumen (15 Stück) sind nur Nachlade-Auslöser, der Spieler steht mitten in der Stadt in keinem davon. Das erste „Stadt = rot“ kam von Dächern und Hängen. Jetzt gilt eine Heuristik: ≥3 Menschen-NPCs (Owner-Klasse `Base_NPC_*` eines `AI_Stats_C`) in 25 m **oder** Gebäude-Treffer (Namen mit building/house/hut/tavern/archway/…) in ≥2 von 8 Richtungen innerhalb 12 m. Stadt-Diagnose 2026-10-24: 13 NPCs in 30 m (`Base_NPC_Guardsman_Base_02_C`, `Base_NPC_CitizenFemale_0x_C`, …), Gebäude `gs_m_Building_*_outside_*`, `SM_Archway_5`. Stadt = rot ✔ (P). **Noch offen:** Fehlalarme in der Wildnis (einzelne Hütten, Banditengruppen).
 
 ## Regeln
 

@@ -10,7 +10,11 @@ local CFG = {
     maxStep = 250,      -- max. Höhenunterschied zwischen Füßen und Lagerplatz (cm)
     roofHeight = 1500,  -- so weit über dem Lagerplatz muss frei sein (cm)
     tickMs = 50,        -- Aktualisierung der Vorschau
-    dangerEvery = 10,   -- Gegner-Prüfung nur jeden n-ten Tick
+    dangerEvery = 10,   -- Gegner- und Siedlungs-Prüfung nur jeden n-ten Tick
+    townNpcs = 3,       -- ab so vielen Menschen-NPCs im Umkreis gilt der Ort als Siedlung
+    townNpcRadius = 2500,       -- cm
+    townBuildingRadius = 1200,  -- cm, Gebäude-Suche in 8 Richtungen
+    townBuildingHits = 2,       -- so viele Richtungen müssen ein Gebäude treffen
     alpha = 0.22,       -- mittlere Deckkraft der Vorschau
     pulse = 0.08,       -- Deckkraft schwankt um ±pulse (Geister-Effekt)
     debug = true,       -- Gründe für Rot ins UE4SS.log schreiben
@@ -35,7 +39,7 @@ local GREEN = { R = 0.4, G = 1.0, B = 0.7 }  -- blasses Geistergrün
 local RED = { R = 1.0, G = 0.35, B = 0.3 }   -- blasses Rot
 local NO_COLOR = { R = 0, G = 0, B = 0, A = 0 }
 
-local state = { placing = false, parts = {}, mids = {}, valid = nil, reason = "", loc = nil, yaw = 0, noDanger = true, n = 0 }
+local state = { placing = false, parts = {}, mids = {}, valid = nil, reason = "", loc = nil, yaw = 0, noDanger = true, town = nil, n = 0 }
 local camp = nil
 
 local function log(fmt, ...)
@@ -106,12 +110,29 @@ end
 local TREE_WORDS = { "foliage", "tree", "pine", "spruce", "oak", "birch", "bush", "leaf", "leaves", "branch", "willow" }
 local WATER_WORDS = { "water", "ocean", "river", "lake", "swim" }
 
-local function inTown(pawn)
-    for _, vol in ipairs(FindAllOf("GS_LoadCity_C") or {}) do
-        local ok, inside = pcall(function() return vol:IsOverlappingActor(pawn) end)
-        if ok and inside then return true end
+local BUILDING_WORDS = { "building", "house", "hut", "tavern", "barn", "smithy", "shop", "stall", "market", "archway", "church", "chapel", "mill" }
+
+-- Siedlung: genug Menschen-NPCs in der Nähe (Klassen Base_NPC_*, Tiere zählen nicht) oder Gebäude ringsum.
+-- (Die GS_LoadCity-Volumen sind nur Nachlade-Auslöser und decken die Stadt nicht ab.)
+local function settlement(pawn, p)
+    local npcs = 0
+    for _, st in ipairs(FindAllOf("AI_Stats_C") or {}) do
+        local ok, owner = pcall(function() return st:GetOwner() end)
+        if ok and owner and owner:IsValid() and owner:GetClass():GetFName():ToString():sub(1, 9) == "Base_NPC_" then
+            local l = owner:K2_GetActorLocation()
+            if (l.X - p.X) ^ 2 + (l.Y - p.Y) ^ 2 < CFG.townNpcRadius ^ 2 then npcs = npcs + 1 end
+        end
     end
-    return false
+    if npcs >= CFG.townNpcs then return string.format("Siedlung (%d Leute in der Nähe)", npcs) end
+    local hits = 0
+    for i = 0, 7 do
+        local r = math.rad(i * 45)
+        local hit = trace(pawn, { X = p.X, Y = p.Y, Z = p.Z + 120 },
+            { X = p.X + math.cos(r) * CFG.townBuildingRadius, Y = p.Y + math.sin(r) * CFG.townBuildingRadius, Z = p.Z + 120 }, {})
+        if hit and matchesAny(hitNames(hit), BUILDING_WORDS) then hits = hits + 1 end
+    end
+    if hits >= CFG.townBuildingHits then return string.format("Siedlung (Gebäude in %d Richtungen)", hits) end
+    return nil
 end
 
 -- Dieselbe Gegner-Prüfung, die auch der Lagerplatz beim Campen macht.
@@ -157,7 +178,7 @@ local function evaluate(pawn, cam)
         local name = hitNames(up)
         if not matchesAny(name, TREE_WORDS) then return g, yaw, false, "Dach: " .. name end
     end
-    if inTown(pawn) then return g, yaw, false, "Stadt (GS_LoadCity)" end
+    if state.town then return g, yaw, false, state.town end
     if not state.noDanger then return g, yaw, false, "Gegner in der Nähe" end
     return g, yaw, true, "passt"
 end
@@ -226,7 +247,11 @@ local function tick()
     local pawn, cam = playerAndCamera()
     if not pawn then return cancel("kein Spieler") end
     state.n = state.n + 1
-    if state.n % CFG.dangerEvery == 1 then state.noDanger = noDanger(pawn) end
+    if state.n % CFG.dangerEvery == 1 then
+        state.noDanger = noDanger(pawn)
+        local g0 = evaluate(pawn, cam)
+        state.town = g0 and settlement(pawn, g0) or nil
+    end
     local g, yaw, ok, reason = evaluate(pawn, cam)
     state.loc, state.yaw = g, yaw
     if g then moveGhost(g, yaw) end
@@ -241,7 +266,7 @@ local function startPlacing()
     local pawn = playerAndCamera()
     if not pawn then return end
     makeGhost(pawn)
-    state.placing, state.reason, state.n, state.valid = true, "", 0, nil
+    state.placing, state.reason, state.n, state.valid, state.loc, state.town = true, "", 0, nil, nil, nil
     log("Platzieren gestartet")
 end
 

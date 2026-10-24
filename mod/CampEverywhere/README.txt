@@ -23,6 +23,8 @@ HOW TO USE
      water, enemies nearby).
   3. Press the quick slot again: on green the camp is set up, on red the ghost disappears.
   Making camp itself works like at any camp spot (Survival skill, one Camp Supplies).
+  Camp spots only look for Camp Supplies in your inventory; if all of them sit on a quick slot,
+  the mod keeps one in your inventory for you.
   One camp at a time; camps are not saved.
 
 SETTINGS

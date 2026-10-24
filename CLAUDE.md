@@ -78,6 +78,14 @@ Umsetzung: ein UE4SS-Lua-Mod (`CampEverywhere`), Stadt-Erkennung = Claudes Sache
 - Schnelle Übersicht über einen Blueprint: `strings -n 3 <asset>.uasset` zeigt die Namenstabelle (Funktionen, Variablen, Referenzen).
 - UE4SS experimental (`../tools/UE4SS_v3.0.1-1181-*.zip`, Dev-Variante `zDEV-…`), noch nicht getestet.
 
+## UE4SS-Regeln (aus den Abstürzen vom 2026-10-24 gelernt)
+
+- **Kein Lua außerhalb des Spiel-Threads:** Kein `LoopAsync`, kein `ExecuteWithDelay`. Stattdessen `LoopInGameThreadWithDelay(ms, fn)` und `ExecuteInGameThreadWithDelay` (in v3.0.1-1181 vorhanden). Diese Async-Funktionen führen Lua in Nebenthreads im selben Lua-Zustand aus. Zusammen mit einem Inventar-Hook, der beim Laden eines Spielstands für jeden Gegenstand feuert, hat das den Zustand zerstört: 4 Abstürze in `UE4SS.dll` auf dem Haupt-Thread (wechselnde Stellen, Müll-Zeiger), jeweils 1,5 bis 6 Minuten nach dem Laden. Nach der Umstellung lief die Sitzung stabil.
+- **Keine Hooks auf häufig feuernde BP-Funktionen** (z. B. `Add Item to Inventory Array`) und keinen Hook auf Komponenten-Delegate-Events (`BndEvt__…BeginOverlap…`: „Ref was not function“). Stattdessen alle 2 s im Spiel-Thread nachsehen.
+- **Hooks auf Spiel-Blueprints** gibt es erst nach dem Laden der Welt. Der Mod läuft beim Spielstart schon im Hauptmenü → `RegisterHook("/Script/Engine.PlayerController:ClientRestart", …)` registriert sie dort (plus direkter Versuch beim Laden des Scripts für Strg+R).
+- Absturzabbilder: `…/Saved/Crashes/UE4CC-*/UE4Minidump.dmp`. Das Wine-Format versteht die Python-Lib `minidump` nicht → eigener Mini-Parser (Exception-Stream 6, Modulliste 4, Speicher 5), Beispiel in der Session vom 2026-10-24.
+- Lua-Syntaxprüfung ohne Lua: `python3 -m venv v && v/bin/pip install luaparser`, dann `ast.parse`.
+
 ## Befunde: Lager
 
 - `RPG_InventorySystem/Classes/Interactable/GS_CampPlace` (Klasse `GS_CampPlace_C`, Parent `Actor`) ist in sich geschlossen: Interaction → `CampChecks` → `MakeCamp` → Camp-Menü `CampplaceWidget/GS_CampPlace_W`.

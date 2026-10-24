@@ -4,7 +4,7 @@ Pascals Mod: Wer das Material hat, soll **überall an sinnvollen Orten** ein Lag
 
 ## Status
 
-**Version 1 läuft (P, 2026-10-24):** Schnellmenü → pulsierende Geistergrün/Rot-Vorschau des Feuerkreises → nochmal drücken setzt das Lager. Geprüft: grün, rot, Hang. Ungetestet: Stadt (`GS_LoadCity`), Gegner (`QS_CheckDanger`-Rückgabe), Wasser, neue Stapel per Hook. Danach Nexus-Release.
+**Version 1 läuft (P, 2026-10-24):** Schnellmenü → pulsierende Geistergrün/Rot-Vorschau des Feuerkreises → nochmal drücken setzt das Lager. Geprüft: grün, rot, Hang, Stadt. Ungetestet: Gegner (`QS_CheckDanger`-Rückgabe), Wasser, neue Stapel per Hook. Danach Nexus-Release.
 Ablauf wie üblich: `superpowers:brainstorming` → Design → Plan → Bau. Nichts bauen, bevor Pascal das Design freigegeben hat (ausgenommen Wegwerf-Spikes, die er will).
 
 Legende: **(P)** = Pascal hat es so gesagt · **(C)** = Claudes Vorschlag oder Befund, noch nicht bestätigt
@@ -52,6 +52,13 @@ Umsetzung: ein UE4SS-Lua-Mod (`CampEverywhere`), Stadt-Erkennung = Claudes Sache
 - Aufs Deck: `camp-everywhere/scripts/deploy-deck.sh`, dann im Spiel Strg+R.
 - **Nie ins Repo oder irgendwohin hochladen:** `research/` (extrahierte Spiel-Assets), `tools/`, `backups/` (Spielstände), `deploy/` (UE4SS-Binaries). Steht in `.gitignore`.
 - Ziel: Veröffentlichung auf Nexus Mods (Pascal lädt mit seinem Account hoch, Claude bereitet Paket und Beschreibung vor).
+
+## Nexus-Release
+
+- **Nur Englisch** (P): Beschreibung, Readme, Kommentare für die Veröffentlichung.
+- Vorlage ist Pascals Pathfinder-Flow: `~/Code/pathfinder-mods/docs/nexus.md` (API, IDs, Re-Upload) und `…/wrath/wrath-tactics/docs/nexus-release-flow-guide.md` (GitHub-Release → `Nexus-Mods/upload-action`, gepinnt auf `@v1.0.0-beta.8`). Die erste Mod-Seite legt Pascal im Browser an und lädt die erste ZIP manuell hoch.
+- Seitenbilder: Header **1920×720**, Thumbnail **900×506**, in `docs/` (dort gitignored, `git add -f`). Stil der bisherigen Mods: Szenenbild + großer Serifen-Titel in Cremegold mit dunkelbrauner Kontur, darunter kursiver Untertitel (PIL, Font `DejaVuSerifCondensed-Bold.ttf`). Beschreibung als BBCode in `docs/nexus-description.bbcode` (Aufbau wie `fix-subsonic-bullshit`: Titel, Problem, Lösung/How it works, Installation, Compatibility, Source Code).
+- Getestet (P): Stadt = rot ✔.
 
 ## Regeln
 

@@ -7,7 +7,7 @@
 -- Supplies per camp, same camp menu.
 local UEHelpers = require("UEHelpers")
 
-local VERSION = "1.0.0"
+local VERSION = "1.0.1"
 
 -- Settings (distances in cm)
 local CFG = {
@@ -337,12 +337,14 @@ local function patchSupplyStacks()
 end
 
 -- Camp spots look for Camp Supplies in the inventory only. Supplies on a quick slot live in the equipment,
--- so the mod keeps one unit in the inventory (taken from the quick slot) whenever none is left there;
--- the game then uses it up as usual at any camp spot.
+-- so the mod tops the inventory up to KEEP_READY (taken from the quick slot); the game then uses them up as
+-- usual at any camp spot. The camp menu's rest options need 1 or 2 in the inventory (GS_CampPlace_W:CampChecks
+-- with Q = 1 / 2; 2 = master camp from Masterful Survival), so one is not enough.
+local KEEP_READY = 2
 function ensureSupplyInInventory(why)
     local have = 0
     local inv = forEachInventorySupply(function(it) have = have + (it[F_QTY] or 0) end)
-    if not inv or have > 0 then return end
+    if not inv or have >= KEEP_READY then return end
     local eq = FindFirstOf("AC_PlayerEquipment_C")
     if not eq or not eq:IsValid() then return end
     local pocket
@@ -354,20 +356,23 @@ function ensureSupplyInInventory(why)
     end)
     if not pocket then return end
     local before = pocket[F_QTY]
-    local one = { [F_ID] = SUPPLY_ID, [F_CLASS] = pocket[F_CLASS], [F_QTY] = 1, [F_SLOT] = POCKET1 }
-    local okAdd, errAdd = pcall(function() inv["Add Item To Player"](inv, one, nil, {}, {}) end)
+    local move = math.min(KEEP_READY - have, before)
+    local stack = { [F_ID] = SUPPLY_ID, [F_CLASS] = pocket[F_CLASS], [F_QTY] = move, [F_SLOT] = POCKET1 }
+    local okAdd, errAdd = pcall(function() inv["Add Item To Player"](inv, stack, nil, {}, {}) end)
     local now = 0
     forEachInventorySupply(function(it) now = now + (it[F_QTY] or 0) end)
-    if now < 1 then
+    local added = now - have
+    if added < 1 then
         if not state.moveWarned then
             log("could not move Camp Supplies to the inventory (%s)", okAdd and "not added" or tostring(errAdd))
             state.moveWarned = true
         end
         return
     end
-    local okRem, errRem = pcall(function() eq["Remove Item Quantity"](eq, pocket, 1) end)
+    local okRem, errRem = pcall(function() eq["Remove Item Quantity"](eq, pocket, added) end)
     if not okRem then log("could not take Camp Supplies from the quick slot: %s", tostring(errRem)) end
-    dbg("moved 1 Camp Supplies from the quick slot to the inventory (%s), quick slot %s -> %s", why, tostring(before), tostring(pocket[F_QTY]))
+    dbg("moved %d Camp Supplies from the quick slot to the inventory (%s), inventory %d -> %d, quick slot %s -> %s",
+        added, why, have, now, tostring(before), tostring(pocket[F_QTY]))
 end
 
 local function itemInPocket(slot)
@@ -413,8 +418,8 @@ RegisterHook("/Script/Engine.PlayerController:ClientRestart", function()
 end)
 registerGameHooks()
 
--- Every 2 s on the game thread: new Camp Supplies stacks become quick-slot capable, and one Camp Supplies is
--- kept ready in the inventory while the rest sits on a quick slot.
+-- Every 2 s on the game thread: new Camp Supplies stacks become quick-slot capable, and KEEP_READY Camp Supplies
+-- are kept ready in the inventory while the rest sits on a quick slot.
 LoopInGameThreadWithDelay(2000, function()
     if not state.placing then
         pcall(patchSupplyStacks)

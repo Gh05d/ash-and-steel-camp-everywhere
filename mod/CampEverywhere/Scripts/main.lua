@@ -342,11 +342,8 @@ end
 -- with Q = 1 / 2; 2 = master camp from Masterful Survival), so one is not enough.
 local KEEP_READY = 2
 function ensureSupplyInInventory(why)
-    local have, invStack = 0, nil
-    local inv = forEachInventorySupply(function(it)
-        have = have + (it[F_QTY] or 0)
-        if not invStack then invStack = it end
-    end)
+    local have = 0
+    local inv = forEachInventorySupply(function(it) have = have + (it[F_QTY] or 0) end)
     if not inv or have >= KEEP_READY then return end
     local eq = FindFirstOf("AC_PlayerEquipment_C")
     if not eq or not eq:IsValid() then return end
@@ -360,15 +357,8 @@ function ensureSupplyInInventory(why)
     if not pocket then return end
     local before = pocket[F_QTY]
     local move = math.min(KEEP_READY - have, before)
-    -- "Add Item To Player" only works when there is no stack in the inventory yet; it does not add to an
-    -- existing one. In that case the existing stack's quantity is raised directly.
-    local okAdd, errAdd
-    if invStack then
-        okAdd, errAdd = pcall(function() invStack[F_QTY] = invStack[F_QTY] + move end)
-    else
-        local stack = { [F_ID] = SUPPLY_ID, [F_CLASS] = pocket[F_CLASS], [F_QTY] = move, [F_SLOT] = POCKET1 }
-        okAdd, errAdd = pcall(function() inv["Add Item To Player"](inv, stack, nil, {}, {}) end)
-    end
+    local stack = { [F_ID] = SUPPLY_ID, [F_CLASS] = pocket[F_CLASS], [F_QTY] = move, [F_SLOT] = POCKET1 }
+    local okAdd, errAdd = pcall(function() inv["Add Item To Player"](inv, stack, nil, {}, {}) end)
     local now = 0
     forEachInventorySupply(function(it) now = now + (it[F_QTY] or 0) end)
     local added = now - have
@@ -433,7 +423,7 @@ registerGameHooks()
 LoopInGameThreadWithDelay(2000, function()
     if not state.placing then
         pcall(patchSupplyStacks)
-        pcall(ensureSupplyInInventory, "keep ready")
+        pcall(ensureSupplyInInventory, "keep one ready")
     end
 end)
 
